@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customer Review Sentiment & RAG Platform</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- jsPDF and autoTable for PDF Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --pos: #10b981;
+      --pos-bg: #ecfdf5;
+      --pos-border: #a7f3d0;
+      --neg: #ef4444;
+      --neg-bg: #fef2f2;
+      --neg-border: #fecaca;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand { display: flex; align-items: center; gap: 0.75rem; }
+    .brand-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--primary), #818cf8);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: bold; font-size: 1.25rem;
+    }
+    .brand h1 { font-size: 1.25rem; font-weight: 700; color: #1e1b4b; }
+    .brand p { font-size: 0.8rem; color: var(--text-muted); }
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.85rem; border-radius: 9999px;
+      font-size: 0.78rem; font-weight: 600;
+      background: #f1f5f9; color: #334155;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
+
+    .nav-tabs {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      gap: 1.5rem;
+    }
+    .nav-tab {
+      padding: 0.9rem 0.2rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 0.92rem;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+    .nav-tab:hover { color: var(--primary); }
+    .nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+    main { flex: 1; max-width: 1280px; width: 100%; margin: 0 auto; padding: 2rem 1.5rem; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-subtitle { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem; }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed #cbd5e1;
+      border-radius: var(--radius);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      background: #f8fafc;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--primary);
+      background: #eef2ff;
+    }
+    .upload-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .upload-title { font-weight: 600; color: #1e293b; margin-bottom: 0.25rem; }
+    .upload-hint { font-size: 0.82rem; color: var(--text-muted); }
+    .btn-row { display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.25rem; flex-wrap: wrap; }
+    
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #f1f5f9; color: #334155; border: 1px solid var(--border); }
+    .btn-secondary:hover { background: #e2e8f0; }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .stat-card.pos { border-left: 4px solid var(--pos); }
+    .stat-card.neg { border-left: 4px solid var(--neg); }
+    .stat-card.neutral { border-left: 4px solid var(--primary); }
+    .stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .stat-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .stat-icon { font-size: 1.25rem; }
+    .stat-value { font-size: 2rem; font-weight: 700; color: #0f172a; }
+    .stat-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
+    .stat-pct { font-weight: 700; }
+    .stat-pct.pos { color: var(--pos); }
+    .stat-pct.neg { color: var(--neg); }
+
+    /* Charts Grid */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .chart-box {
+      background: white;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+    }
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .chart-title { font-size: 0.98rem; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 0.4rem; }
+    .chart-container { position: relative; height: 260px; width: 100%; }
+
+    /* Words Container */
+    .words-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .word-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 320px; overflow-y: auto; }
+    .word-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.75rem;
+      background: #f8fafc;
+      border-radius: 6px;
+      font-size: 0.88rem;
+    }
+    .word-item-name { font-weight: 600; color: #1e293b; }
+    .word-item-badge {
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .word-item-badge.pos { background: var(--pos-bg); color: var(--pos); border: 1px solid var(--pos-border); }
+    .word-item-badge.neg { background: var(--neg-bg); color: var(--neg); border: 1px solid var(--neg-border); }
+    .word-bar { height: 6px; border-radius: 3px; margin-top: 4px; background: #e2e8f0; overflow: hidden; }
+    .word-bar-fill.pos { height: 100%; background: var(--pos); border-radius: 3px; }
+    .word-bar-fill.neg { height: 100%; background: var(--neg); border-radius: 3px; }
+
+    /* Table styles */
+    .table-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .filter-pills { display: flex; gap: 0.5rem; }
+    .pill {
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: white;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .pill.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .search-input {
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+      width: 240px;
+    }
+
+    .table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th {
+      background: #f8fafc;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      color: #475569;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 0.85rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    tr:hover { background: #fbfcfe; }
+    .sentiment-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    .sentiment-badge.positive { background: var(--pos-bg); color: var(--pos); border: 1px solid var(--pos-border); }
+    .sentiment-badge.negative { background: var(--neg-bg); color: var(--neg); border: 1px solid var(--neg-border); }
+
+    .confidence-meter { display: flex; align-items: center; gap: 0.5rem; min-width: 130px; }
+    .confidence-bar-bg { flex: 1; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+    .confidence-bar-fill { height: 100%; border-radius: 3px; }
+    .confidence-bar-fill.positive { background: var(--pos); }
+    .confidence-bar-fill.negative { background: var(--neg); }
+
+    /* Single tester & RAG */
+    .form-group { margin-bottom: 1rem; }
+    .form-label { display: block; font-weight: 600; font-size: 0.88rem; margin-bottom: 0.4rem; }
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus, input[type="text"]:focus { border-color: var(--primary); }
+
+    .rag-answer-box {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-top: 1rem;
+    }
+    .sources-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.75rem; }
+    .source-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .loader {
+      display: none;
+      text-align: center;
+      padding: 2rem;
+      color: var(--primary);
+    }
+    .spinner {
+      border: 3px solid #e0e7ff;
+      border-top: 3px solid var(--primary);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 0.75rem;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">ML</div>
+      <div>
+        <h1>MLOps Review Analytics & RAG</h1>
+        <p>Customer Feedback Intelligence & Document Retrieval</p>
+      </div>
+    </div>
+    <div class="status-badge" id="systemHealthBadge">
+      <span class="status-dot"></span>
+      <span>System Active</span>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs">
+    <div class="nav-tab active" onclick="switchTab('analyzerTab')">
+      📊 Review Document Analyzer
+    </div>
+    <div class="nav-tab" onclick="switchTab('singleTab')">
+      ⚡ Quick Sentiment Tester
+    </div>
+    <div class="nav-tab" onclick="switchTab('ragTab')">
+      📚 Knowledge Base (RAG Q&A)
+    </div>
+    <div class="nav-tab" onclick="switchTab('metricsTab')">
+      📈 Model Performance
+    </div>
+  </nav>
+
+  <!-- Main Content Container -->
+  <main>
+
+    <!-- TAB 1: Review Document Analyzer -->
+    <div id="analyzerTab" class="tab-content active">
+      
+      <!-- Upload Card -->
+      <div class="card">
+        <div class="card-title">
+          <span>Upload Customer Reviews Document</span>
+          <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted);">Supported: PDF, CSV, TXT, JSON</span>
+        </div>
+        <p class="card-subtitle">
+          Upload any file containing customer feedback or reviews (PDF, CSV, TXT, or JSON). The system will classify every review, identify top positive & negative words, and generate analytics charts.
+        </p>
+
+        <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <div class="upload-icon">📂</div>
+          <div class="upload-title" id="dropTitle">Drag & Drop review document here, or click to browse</div>
+          <div class="upload-hint">PDF documents, CSV (with review/text column), plain text (one review per line), or JSON</div>
+          <input type="file" id="fileInput" accept=".csv,.txt,.json,.pdf" style="display: none;" onchange="handleFileSelect(event)">
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" id="analyzeBtn" onclick="uploadAndAnalyze()" disabled>
+            🚀 Analyze Uploaded File
+          </button>
+          <button class="btn btn-secondary" onclick="loadSampleReviews()">
+            ✨ Load Sample Reviews (20 Examples)
+          </button>
+          <button class="btn btn-secondary" onclick="togglePasteArea()">
+            📝 Or Paste Raw Text
+          </button>
+        </div>
+
+        <!-- Optional Paste Text Area -->
+        <div id="pasteArea" style="display: none; margin-top: 1.25rem;">
+          <label class="form-label">Paste reviews below (one review per line):</label>
+          <textarea id="rawReviewsInput" rows="5" placeholder="Great service, loved the product!&#10;Poor quality and broke immediately.&#10;Highly recommended and fast shipping."></textarea>
+          <div style="margin-top: 0.5rem; text-align: right;">
+            <button class="btn btn-primary" onclick="analyzeRawText()">Analyze Pasted Reviews</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading Indicator -->
+      <div class="loader" id="analyzerLoader">
+        <div class="spinner"></div>
+        <p style="font-weight: 600;">Analyzing reviews and generating charts...</p>
+      </div>
+
+      <!-- Results Section (hidden until analysis is performed) -->
+      <div id="resultsContainer" style="display: none;">
+
+        <!-- Summary Metric Cards -->
+        <div class="stats-grid">
+          <div class="stat-card neutral">
+            <div class="stat-header">
+              <span class="stat-label">Total Reviews</span>
+              <span class="stat-icon">📝</span>
+            </div>
+            <div class="stat-value" id="statTotal">0</div>
+            <div class="stat-sub">Analyzed documents</div>
+          </div>
+
+          <div class="stat-card pos">
+            <div class="stat-header">
+              <span class="stat-label">Positive Reviews</span>
+              <span class="stat-icon">🟢</span>
+            </div>
+            <div class="stat-value" id="statPos">0</div>
+            <div class="stat-sub"><span class="stat-pct pos" id="statPosPct">0%</span> of total feedback</div>
+          </div>
+
+          <div class="stat-card neg">
+            <div class="stat-header">
+              <span class="stat-label">Negative Reviews</span>
+              <span class="stat-icon">🔴</span>
+            </div>
+            <div class="stat-value" id="statNeg">0</div>
+            <div class="stat-sub"><span class="stat-pct neg" id="statNegPct">0%</span> of total feedback</div>
+          </div>
+
+          <div class="stat-card neutral">
+            <div class="stat-header">
+              <span class="stat-label">Avg. Confidence</span>
+              <span class="stat-icon">🎯</span>
+            </div>
+            <div class="stat-value" id="statAvgConf">0%</div>
+            <div class="stat-sub">Model certainty index</div>
+          </div>
+        </div>
+
+        <!-- Separate Charts for Positive and Negative Reviews -->
+        <div class="charts-grid">
+          <!-- Overall Ratio Chart -->
+          <div class="chart-box">
+            <div class="chart-header">
+              <div class="chart-title">🥧 Overall Sentiment Distribution</div>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Share of voice</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="ratioChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Positive Reviews Chart -->
+          <div class="chart-box">
+            <div class="chart-header">
+              <div class="chart-title" style="color: var(--pos);">🟢 Positive Reviews Confidence</div>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Certainty tiers</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="posChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Negative Reviews Chart -->
+          <div class="chart-box">
+            <div class="chart-header">
+              <div class="chart-title" style="color: var(--neg);">🔴 Negative Reviews Confidence</div>
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Certainty tiers</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="negChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Word Frequency Analysis -->
+        <div class="card">
+          <div class="card-title">
+            <span>🗣️ Most Frequently Used Words</span>
+            <span style="font-size: 0.82rem; font-weight: normal; color: var(--text-muted);">Stop words filtered out</span>
+          </div>
+          <p class="card-subtitle">Key recurring themes extracted from positive vs negative reviews</p>
+
+          <div class="words-grid">
+            <!-- Positive Top Words -->
+            <div class="chart-box" style="border-top: 3px solid var(--pos);">
+              <div class="chart-header">
+                <div class="chart-title" style="color: var(--pos);">Top Words in Positive Reviews</div>
+              </div>
+              <div class="word-list" id="posWordsList">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Negative Top Words -->
+            <div class="chart-box" style="border-top: 3px solid var(--neg);">
+              <div class="chart-header">
+                <div class="chart-title" style="color: var(--neg);">Top Words in Negative Reviews</div>
+              </div>
+              <div class="word-list" id="negWordsList">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Review List Table -->
+        <div class="card">
+          <div class="card-title">
+            <span>📋 All Analyzed Reviews</span>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn btn-secondary" onclick="exportToCSV()" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                📥 Export CSV
+              </button>
+              <button class="btn btn-primary" onclick="exportToPDF()" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                📄 Export PDF Report
+              </button>
+              <button class="btn btn-secondary" onclick="exportToJSON()" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                💾 Export JSON
+              </button>
+            </div>
+          </div>
+          <p class="card-subtitle">Individual classification and confidence breakdown</p>
+
+          <div class="table-controls">
+            <div class="filter-pills">
+              <div class="pill active" onclick="filterTable('all', this)">All (<span id="pillCountAll">0</span>)</div>
+              <div class="pill" onclick="filterTable('positive', this)">Positive (<span id="pillCountPos">0</span>)</div>
+              <div class="pill" onclick="filterTable('negative', this)">Negative (<span id="pillCountNeg">0</span>)</div>
+            </div>
+            <input type="text" class="search-input" id="tableSearch" placeholder="Search in reviews..." oninput="searchTable()">
+          </div>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 50px;">#</th>
+                  <th>Customer Review</th>
+                  <th style="width: 120px;">Sentiment</th>
+                  <th style="width: 170px;">Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="reviewsTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 2: Quick Sentiment Tester -->
+    <div id="singleTab" class="tab-content">
+      <div class="card">
+        <div class="card-title">Single Review Sentiment Inference</div>
+        <p class="card-subtitle">Test individual sentences with the trained model (`POST /predict`)</p>
+
+        <div class="form-group">
+          <label class="form-label">Review Text:</label>
+          <textarea id="singleTextInput" rows="3" placeholder="Enter a customer review, e.g., 'The support team was helpful and solved my issue quickly.'">The support team was helpful and solved my issue quickly.</textarea>
+        </div>
+
+        <button class="btn btn-primary" onclick="predictSingle()">Predict Sentiment</button>
+
+        <div id="singleResult" style="display: none; margin-top: 1.5rem; padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); background: #f8fafc;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="font-weight: 600;">Predicted Sentiment:</span>
+            <span class="sentiment-badge" id="singleLabelBadge">positive</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="font-weight: 600;">Model Confidence:</span>
+            <span style="font-weight: 700;" id="singleConfidence">90.2%</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+            <span>Model Version:</span>
+            <span id="singleVersion">1.0.0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Knowledge Base (RAG Q&A) -->
+    <div id="ragTab" class="tab-content">
+      <div class="card">
+        <div class="card-title">Knowledge Base Q&A (Local RAG)</div>
+        <p class="card-subtitle">Retrieval Augmented Generation over local documentation in `data/knowledge/` (`POST /rag/query`)</p>
+
+        <div class="form-group">
+          <label class="form-label">Ask a question:</label>
+          <input type="text" id="ragQuestionInput" value="How does the CI pipeline work?" placeholder="e.g. How does the CI pipeline work?">
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+          <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.7rem;" onclick="setRagQuestion('How does the CI pipeline work?')">CI Pipeline</button>
+          <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.7rem;" onclick="setRagQuestion('What is the RAG architecture?')">RAG Architecture</button>
+          <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.7rem;" onclick="setRagQuestion('How are automated tests structured?')">Testing</button>
+        </div>
+
+        <button class="btn btn-primary" onclick="queryRAG()">Query Knowledge Base</button>
+
+        <div id="ragResult" style="display: none; margin-top: 1.5rem;">
+          <div class="rag-answer-box">
+            <h4 style="color: var(--primary); margin-bottom: 0.5rem;">Extracted Answer:</h4>
+            <p id="ragAnswerText" style="line-height: 1.6; font-size: 0.95rem;"></p>
+          </div>
+
+          <h4 style="margin-top: 1.25rem; font-size: 0.95rem; font-weight: 600;">Retrieved Source Documents:</h4>
+          <div class="sources-list" id="ragSourcesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Model Performance Metrics -->
+    <div id="metricsTab" class="tab-content">
+      <div class="card">
+        <div class="card-title">Model Metrics & Classification Report</div>
+        <p class="card-subtitle">Live metrics from `artifacts/metrics.json` (`GET /model/metrics`)</p>
+        <button class="btn btn-secondary" onclick="loadMetrics()" style="margin-bottom: 1rem;">🔄 Refresh Metrics</button>
+        <pre id="metricsJson" style="background: #0f172a; color: #f8fafc; padding: 1.25rem; border-radius: 8px; font-size: 0.85rem; overflow-x: auto;"></pre>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    let selectedFile = null;
+    let analysisData = null;
+    let ratioChartInst = null;
+    let posChartInst = null;
+    let negChartInst = null;
+    let currentFilter = 'all';
+
+    // Switch Tabs
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      event.currentTarget.classList.add('active');
+
+      if (tabId === 'metricsTab') {
+        loadMetrics();
+      }
+    }
+
+    // Drag and Drop
+    const dropZone = document.getElementById('dropZone');
+    ['dragenter', 'dragover'].forEach(name => {
+      dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.add('dragover'); }, false);
+    });
+    ['dragleave', 'drop'].forEach(name => {
+      dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); }, false);
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      if (dt.files.length) {
+        selectedFile = dt.files[0];
+        updateFileLabel();
+      }
+    });
+
+    function handleFileSelect(e) {
+      if (e.target.files.length) {
+        selectedFile = e.target.files[0];
+        updateFileLabel();
+      }
+    }
+
+    function updateFileLabel() {
+      if (selectedFile) {
+        document.getElementById('dropTitle').textContent = `Selected: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)`;
+        document.getElementById('analyzeBtn').disabled = false;
+      }
+    }
+
+    function togglePasteArea() {
+      const area = document.getElementById('pasteArea');
+      area.style.display = area.style.display === 'none' ? 'block' : 'none';
+    }
+
+    // Upload & Analyze
+    async function uploadAndAnalyze() {
+      if (!selectedFile) return;
+      showLoader(true);
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const res = await fetch('/reviews/upload', {
+          method: 'POST',
+          body: formData
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert('Error: ' + (err.detail || res.statusText));
+          return;
+        }
+        analysisData = await res.json();
+        renderResults(analysisData);
+      } catch (err) {
+        alert('Upload failed: ' + err.message);
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // Analyze Pasted Text
+    async function analyzeRawText() {
+      const text = document.getElementById('rawReviewsInput').value.trim();
+      if (!text) {
+        alert('Please paste some review text first.');
+        return;
+      }
+      showLoader(true);
+
+      try {
+        const res = await fetch('/reviews/analyze-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert('Error: ' + (err.detail || res.statusText));
+          return;
+        }
+        analysisData = await res.json();
+        renderResults(analysisData);
+      } catch (err) {
+        alert('Analysis failed: ' + err.message);
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // Load Pre-built Sample Reviews
+    async function loadSampleReviews() {
+      showLoader(true);
+      try {
+        const res = await fetch('/reviews/sample');
+        if (!res.ok) {
+          alert('Could not fetch sample reviews');
+          return;
+        }
+        analysisData = await res.json();
+        renderResults(analysisData);
+      } catch (err) {
+        alert('Failed loading sample: ' + err.message);
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    function showLoader(show) {
+      document.getElementById('analyzerLoader').style.display = show ? 'block' : 'none';
+      if (show) {
+        document.getElementById('resultsContainer').style.display = 'none';
+      }
+    }
+
+    // Render Analysis Results
+    function renderResults(data) {
+      document.getElementById('resultsContainer').style.display = 'block';
+
+      // 1. Stats Cards
+      document.getElementById('statTotal').textContent = data.total_reviews;
+      document.getElementById('statPos').textContent = data.positive_count;
+      document.getElementById('statPosPct').textContent = `${data.positive_percentage}%`;
+      document.getElementById('statNeg').textContent = data.negative_count;
+      document.getElementById('statNegPct').textContent = `${data.negative_percentage}%`;
+      document.getElementById('statAvgConf').textContent = `${(data.average_confidence * 100).toFixed(1)}%`;
+
+      document.getElementById('pillCountAll').textContent = data.total_reviews;
+      document.getElementById('pillCountPos').textContent = data.positive_count;
+      document.getElementById('pillCountNeg').textContent = data.negative_count;
+
+      // 2. Charts
+      renderCharts(data);
+
+      // 3. Words lists
+      renderWords(data);
+
+      // 4. Table
+      renderTable(data.reviews);
+    }
+
+    function renderCharts(data) {
+      // Overall Ratio Chart
+      if (ratioChartInst) ratioChartInst.destroy();
+      const ctxRatio = document.getElementById('ratioChart').getContext('2d');
+      ratioChartInst = new Chart(ctxRatio, {
+        type: 'doughnut',
+        data: {
+          labels: ['Positive', 'Negative'],
+          datasets: [{
+            data: [data.positive_count, data.negative_count],
+            backgroundColor: ['#10b981', '#ef4444'],
+            hoverOffset: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+
+      // Positive Reviews Confidence Chart
+      if (posChartInst) posChartInst.destroy();
+      const ctxPos = document.getElementById('posChart').getContext('2d');
+      const posDist = data.positive_confidence_distribution;
+      posChartInst = new Chart(ctxPos, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(posDist),
+          datasets: [{
+            label: 'Positive Reviews Count',
+            data: Object.values(posDist),
+            backgroundColor: '#10b981',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // Negative Reviews Confidence Chart
+      if (negChartInst) negChartInst.destroy();
+      const ctxNeg = document.getElementById('negChart').getContext('2d');
+      const negDist = data.negative_confidence_distribution;
+      negChartInst = new Chart(ctxNeg, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(negDist),
+          datasets: [{
+            label: 'Negative Reviews Count',
+            data: Object.values(negDist),
+            backgroundColor: '#ef4444',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    function renderWords(data) {
+      const posList = document.getElementById('posWordsList');
+      const negList = document.getElementById('negWordsList');
+      posList.innerHTML = '';
+      negList.innerHTML = '';
+
+      const maxPos = data.positive_top_words.length ? Math.max(...data.positive_top_words.map(w => w.count)) : 1;
+      const maxNeg = data.negative_top_words.length ? Math.max(...data.negative_top_words.map(w => w.count)) : 1;
+
+      if (!data.positive_top_words.length) {
+        posList.innerHTML = '<div style="color: var(--text-muted); padding: 0.5rem;">No positive words detected</div>';
+      } else {
+        data.positive_top_words.forEach(item => {
+          const pct = Math.round((item.count / maxPos) * 100);
+          posList.innerHTML += `
+            <div class="word-item">
+              <div style="flex: 1;">
+                <span class="word-item-name">${item.word}</span>
+                <div class="word-bar"><div class="word-bar-fill pos" style="width: ${pct}%;"></div></div>
+              </div>
+              <span class="word-item-badge pos">${item.count}</span>
+            </div>
+          `;
+        });
+      }
+
+      if (!data.negative_top_words.length) {
+        negList.innerHTML = '<div style="color: var(--text-muted); padding: 0.5rem;">No negative words detected</div>';
+      } else {
+        data.negative_top_words.forEach(item => {
+          const pct = Math.round((item.count / maxNeg) * 100);
+          negList.innerHTML += `
+            <div class="word-item">
+              <div style="flex: 1;">
+                <span class="word-item-name">${item.word}</span>
+                <div class="word-bar"><div class="word-bar-fill neg" style="width: ${pct}%;"></div></div>
+              </div>
+              <span class="word-item-badge neg">${item.count}</span>
+            </div>
+          `;
+        });
+      }
+    }
+
+    function renderTable(reviews) {
+      const tbody = document.getElementById('reviewsTableBody');
+      tbody.innerHTML = '';
+
+      reviews.forEach((r, idx) => {
+        const confPct = Math.round(r.confidence * 100);
+        tbody.innerHTML += `
+          <tr data-label="${r.label}" data-text="${r.text.toLowerCase()}">
+            <td style="color: var(--text-muted); font-size: 0.8rem;">${idx + 1}</td>
+            <td style="line-height: 1.4;">${escapeHtml(r.text)}</td>
+            <td>
+              <span class="sentiment-badge ${r.label}">
+                ${r.label === 'positive' ? '🟢' : '🔴'} ${r.label}
+              </span>
+            </td>
+            <td>
+              <div class="confidence-meter">
+                <div class="confidence-bar-bg">
+                  <div class="confidence-bar-fill ${r.label}" style="width: ${confPct}%;"></div>
+                </div>
+                <span style="font-weight: 600; font-size: 0.8rem;">${confPct}%</span>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    function filterTable(filter, pillEl) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
+      if (pillEl) pillEl.classList.add('active');
+      searchTable();
+    }
+
+    function searchTable() {
+      const query = document.getElementById('tableSearch').value.toLowerCase();
+      const rows = document.querySelectorAll('#reviewsTableBody tr');
+      rows.forEach(row => {
+        const label = row.getAttribute('data-label');
+        const text = row.getAttribute('data-text');
+        const matchesFilter = currentFilter === 'all' || label === currentFilter;
+        const matchesSearch = !query || text.includes(query);
+        row.style.display = (matchesFilter && matchesSearch) ? '' : 'none';
+      });
+    }
+
+    function exportToCSV() {
+      if (!analysisData || !analysisData.reviews.length) return;
+      let csvContent = 'data:text/csv;charset=utf-8,ID,Review,Predicted_Sentiment,Confidence\n';
+      analysisData.reviews.forEach((r, i) => {
+        const escaped = `"${r.text.replace(/"/g, '""')}"`;
+        csvContent += `${i + 1},${escaped},${r.label},${r.confidence}\n`;
+      });
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', 'analyzed_customer_reviews.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function exportToJSON() {
+      if (!analysisData || !analysisData.reviews.length) return;
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(analysisData, null, 2));
+      const link = document.createElement('a');
+      link.setAttribute('href', dataStr);
+      link.setAttribute('download', 'analyzed_customer_reviews.json');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function exportToPDF() {
+      if (!analysisData || !analysisData.reviews.length) {
+        alert('No analysis data to export. Please analyze reviews first.');
+        return;
+      }
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p', 'pt', 'a4');
+
+      // Title & Header
+      doc.setFontSize(18);
+      doc.setTextColor(30, 27, 75);
+      doc.text('Customer Review Sentiment Analysis Report', 40, 45);
+
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      const dateStr = new Date().toLocaleString();
+      doc.text(`Generated: ${dateStr} | Engine: TF-IDF + Logistic Regression (MLOps Lab)`, 40, 62);
+
+      // Summary KPI Box
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(40, 75, 515, 65, 6, 6, 'FD');
+
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`Total Reviews: ${analysisData.total_reviews}`, 55, 95);
+      doc.text(`Positive Sentiment: ${analysisData.positive_count} (${analysisData.positive_percentage}%)`, 200, 95);
+      doc.text(`Negative Sentiment: ${analysisData.negative_count} (${analysisData.negative_percentage}%)`, 390, 95);
+      doc.text(`Average Model Confidence: ${(analysisData.average_confidence * 100).toFixed(1)}%`, 55, 120);
+
+      // Top Keywords Summary
+      doc.setFontSize(12);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Frequent Sentiment Themes:', 40, 160);
+
+      const posWords = (analysisData.positive_top_words || []).slice(0, 5).map(w => `${w.word} (${w.count})`).join(', ');
+      const negWords = (analysisData.negative_top_words || []).slice(0, 5).map(w => `${w.word} (${w.count})`).join(', ');
+
+      doc.setFontSize(9);
+      doc.setTextColor(16, 185, 129);
+      doc.text(`Top Positive Words: ${posWords || 'None'}`, 40, 178);
+      doc.setTextColor(239, 68, 68);
+      doc.text(`Top Negative Words: ${negWords || 'None'}`, 40, 194);
+
+      // Reviews Table
+      const tableRows = analysisData.reviews.map((r, i) => [
+        (i + 1).toString(),
+        r.text,
+        r.label.toUpperCase(),
+        `${(r.confidence * 100).toFixed(1)}%`
+      ]);
+
+      doc.autoTable({
+        startY: 210,
+        head: [['#', 'Customer Review Text', 'Sentiment', 'Confidence']],
+        body: tableRows,
+        theme: 'striped',
+        styles: { fontSize: 8, cellPadding: 5, overflow: 'linebreak' },
+        columnStyles: {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 340 },
+          2: { cellWidth: 75, fontStyle: 'bold' },
+          3: { cellWidth: 70 }
+        },
+        didParseCell: function(data) {
+          if (data.section === 'body' && data.column.index === 2) {
+            if (data.cell.raw === 'POSITIVE') {
+              data.cell.styles.textColor = [16, 185, 129];
+            } else if (data.cell.raw === 'NEGATIVE') {
+              data.cell.styles.textColor = [239, 68, 68];
+            }
+          }
+        },
+        margin: { top: 40, right: 40, bottom: 40, left: 40 }
+      });
+
+      doc.save('sentiment_analysis_report.pdf');
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Quick Single Review Tester
+    async function predictSingle() {
+      const text = document.getElementById('singleTextInput').value.trim();
+      if (!text) return;
+      try {
+        const res = await fetch('/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        });
+        const data = await res.json();
+        const badge = document.getElementById('singleLabelBadge');
+        badge.className = `sentiment-badge ${data.label}`;
+        badge.textContent = `${data.label === 'positive' ? '🟢' : '🔴'} ${data.label}`;
+        document.getElementById('singleConfidence').textContent = `${(data.confidence * 100).toFixed(1)}%`;
+        document.getElementById('singleVersion').textContent = data.model_version;
+        document.getElementById('singleResult').style.display = 'block';
+      } catch (err) {
+        alert('Prediction error: ' + err.message);
+      }
+    }
+
+    // RAG Q&A
+    function setRagQuestion(q) {
+      document.getElementById('ragQuestionInput').value = q;
+      queryRAG();
+    }
+
+    async function queryRAG() {
+      const question = document.getElementById('ragQuestionInput').value.trim();
+      if (!question) return;
+      try {
+        const res = await fetch('/rag/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: question, top_k: 3 })
+        });
+        const data = await res.json();
+        document.getElementById('ragAnswerText').textContent = data.answer;
+
+        const sourcesList = document.getElementById('ragSourcesList');
+        sourcesList.innerHTML = '';
+        data.sources.forEach(s => {
+          sourcesList.innerHTML += `
+            <div class="source-card">
+              <div style="display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 0.35rem;">
+                <span style="color: var(--primary);">📄 ${s.source}</span>
+                <span style="color: var(--text-muted);">Relevance Score: ${s.score}</span>
+              </div>
+              <p style="color: #475569; font-size: 0.83rem; line-height: 1.4;">${escapeHtml(s.excerpt)}</p>
+            </div>
+          `;
+        });
+        document.getElementById('ragResult').style.display = 'block';
+      } catch (err) {
+        alert('RAG Query error: ' + err.message);
+      }
+    }
+
+    // Load Metrics
+    async function loadMetrics() {
+      try {
+        const res = await fetch('/model/metrics');
+        const data = await res.json();
+        document.getElementById('metricsJson').textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        document.getElementById('metricsJson').textContent = 'Failed to load metrics: ' + err.message;
+      }
+    }
+
+    // Check health on load
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const res = await fetch('/health');
+        const data = await res.json();
+        if (data.status === 'ok') {
+          document.getElementById('systemHealthBadge').innerHTML = `
+            <span class="status-dot"></span>
+            <span>Model: ${data.model} | RAG: ${data.rag}</span>
+          `;
+        }
+      } catch (e) {}
+    });
+  </script>
+</body>
+</html>
+
