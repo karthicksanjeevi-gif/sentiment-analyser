@@ -35,6 +35,15 @@ _rag: LocalRAG | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _model, _model_version, _rag
+    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not MODEL_PATH.exists():
+        # Auto-train model in-process if deployed without pre-built artifacts
+        try:
+            from scripts.train import main as train_model
+            train_model()
+        except Exception as e:
+            print(f"Warning: automatic training failed on startup: {e}")
+
     if MODEL_PATH.exists():
         bundle = joblib.load(MODEL_PATH)
         _model = bundle["model"]
