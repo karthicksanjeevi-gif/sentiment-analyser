@@ -40,7 +40,8 @@ Interactive Swagger API docs are available at:
 Example `/predict` body:
 ```json
 {"text":"The support team was helpful and solved my issue quickly."}
-```
+
+'``
 
 Example `/rag/query` body:
 ```json
